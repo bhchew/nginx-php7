@@ -1,0 +1,71 @@
+---
+- hosts: '{{ env }}'
+  sudo: yes
+  tasks:
+
+  - name: Install EPEL, REMI and Webtatic repos
+    yum: name=epel-release state=latest
+    yum: name=http://rpms.famillecollet.com/enterprise/remi-release-7.rpm state=present
+    yum: name=https://mirror.webtatic.com/yum/el7/webtatic-release.rpm state=present
+    
+  - name: Copy nginx repo file 
+    template: src=nginx-repo.j2 dest="/etc/yum.repos.d/nginx.repo"
+
+  - name: Install Git, Nginx, php 7 and dependencies
+    yum: name={{ item }} state=present
+    with_items:
+     - git
+     - zlib-devel
+     - libmemcached-devel
+     - nginx
+     - php70w
+     - php70w-devel
+     - php70w-mysql
+     - php70w-mbstring
+     - php70w-json
+     - php70w-gd
+     - php70w-mcrypt
+     - php70w-opcache
+     - php70w-fpm
+
+  - name: Git clone php7 memcached extension
+    git: repo=https://github.com/php-memcached-dev/php-memcached.git
+      dest=/usr/local/src/php-memcached
+      version=php7
+      update=yes
+
+  - name: Compile php 7 memcached extension (devel)
+    shell: >
+      {{ item }}
+      chdir=/usr/local/src/php-memcached
+    with_items:
+     - phpize
+     - ./configure
+     - make
+     - make install
+
+  - name: create memcached.ini
+    ini_file: dest=/etc/php.d/memcached.ini section=memcached option=extension value=memcached.so
+
+  - name: copy nginx.conf, php.ini, php-fpm.conf and www.conf
+    template: src={{item.src}} dest={{item.dest}}
+    with_items:
+      - { src: 'nginx-conf.j2', dest: '/etc/nginx/conf.d/default.conf' }
+      - { src: 'php-ini.j2', dest: '/etc/php.ini' }
+      - { src: 'php-fpm-conf.j2', dest: '/etc/php-fpm.conf' }
+      #- { src: 'www-conf.j2', dest: '/etc/php-fpm.d/www.conf' }
+
+  - name: copy www.conf (bug above)
+    copy: src=www-conf.j2 dest=/etc/php-fpm.d/www.conf
+
+  - service: name={{ item }} enabled=yes
+    with_items:
+     - nginx
+     - php-fpm
+
+  - service: name={{ item }} state=restarted
+    with_items:
+     - nginx
+     - php-fpm
+
+
