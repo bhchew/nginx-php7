@@ -1,4 +1,4 @@
 # nginx-php7
 Ansible yaml 
 
-Latest Nginx with PHP-FPM 7
+Nginx 1.8.1 with PHP-FPM 7.0.9 for Amazon Linux
